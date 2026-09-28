@@ -21,6 +21,9 @@ export type Trade = {
   tags: string | null; // comma separated
   notes: string | null;
   rating: number | null;
+  source: "manual" | "mt5";
+  external_id: string | null; // e.g. "mt5:<login>:<position id>"
+  broker_pnl: number | null; // net P&L reported by the broker, in account currency
   created_at: string;
   updated_at: string;
 };

@@ -12,6 +12,7 @@ Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, Po
 - **Trades list** — search, filter by symbol, setup, side, status and date range, with totals for the filtered set.
 - **Calendar** — monthly P&L heatmap with weekly totals; click a day to see its trades.
 - **Analytics** — breakdowns by setup, symbol, tag, day of week, hour of day, long vs short and asset class, plus an R-multiple distribution.
+- **MetaTrader 5 sync**: a read-only Expert Advisor sends your closed and open positions automatically. Details below.
 - **CSV import / export** — import from a spreadsheet or broker export (validated row by row, all-or-nothing), export any filtered view.
 - **Settings** — name, currency, starting balance (anchors the equity curve and drawdown), change password.
 - Light and dark mode (follows your OS), responsive down to phone width.
@@ -44,6 +45,25 @@ cp .env.example .env.local   # then paste your DATABASE_URL into .env.local
 npm run db:setup             # applies supabase/schema.sql (same as step 1.2)
 npm run dev                  # http://localhost:3000
 ```
+
+## MetaTrader 5 sync
+
+The `TradeLogSync` Expert Advisor ([`public/TradeLogSync.mq5`](public/TradeLogSync.mq5), also downloadable from **Settings → MetaTrader 5**) runs inside your MT5 terminal and posts positions to `/api/mt5/trades`.
+
+1. **Settings → MetaTrader 5 → Create API key**, then download the EA.
+2. MT5: **File → Open Data Folder**, put the file in `MQL5/Experts`, then refresh **Expert Advisors** in the Navigator. MT5 compiles it on first load.
+3. **Tools → Options → Expert Advisors**: tick **Allow WebRequest for listed URL** and add your app's address (e.g. `https://your-app.vercel.app`).
+4. Drag **TradeLogSync** onto any chart, paste the sync URL and API key into **Inputs**, and turn on **Algo Trading**.
+
+How it works:
+
+- On the first run it sends the last 90 days (`InpHistoryDays`), then syncs every minute and right after each trade. Every run re-sends the last 2 days, so partial closes and swaps stay correct.
+- Deals are grouped per position (partial closes are averaged). P&L is the broker's figure in your account currency: profit + commission + swap + fees.
+- Re-sending is safe. Positions are matched by account and position ID. Your setup, tags, notes and rating are never overwritten.
+- It only reads history. It never opens, closes or modifies orders. It needs MT5 running (a VPS works for 24/7 syncing), and times are your broker's server time.
+- Netting accounts that reverse a position in one deal are not split into two trades.
+
+**Upgrading an existing database:** re-run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL editor (or `npm run db:setup`) to add the MT5 columns. It is safe to run again.
 
 ## Sample data
 

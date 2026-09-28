@@ -3,15 +3,19 @@ import type { Trade } from "./types";
 type PnlInput = Pick<
   Trade,
   "side" | "quantity" | "multiplier" | "entry_price" | "exit_price" | "fees"
->;
+> & { broker_pnl?: number | null };
 
 export function isClosed(t: Pick<Trade, "exit_price">): boolean {
   return t.exit_price !== null;
 }
 
-/** Net P&L after fees. Null while the trade is still open. */
+/**
+ * Net P&L after fees. Null while the trade is still open. Broker-synced trades use the
+ * broker's figure, which is already in account currency (e.g. USDJPY P&L in USD).
+ */
 export function netPnl(t: PnlInput): number | null {
   if (t.exit_price === null) return null;
+  if (t.broker_pnl != null) return t.broker_pnl;
   const direction = t.side === "long" ? 1 : -1;
   return (t.exit_price - t.entry_price) * t.quantity * t.multiplier * direction - t.fees;
 }
@@ -27,6 +31,12 @@ export function initialRisk(
 
 /** P&L expressed in multiples of initial risk. */
 export function rMultiple(t: PnlInput & Pick<Trade, "stop_loss">): number | null {
+  if (t.broker_pnl != null) {
+    // Broker P&L may be in a different currency from the price, so compare price moves.
+    if (t.exit_price === null || t.stop_loss === null || t.stop_loss === t.entry_price) return null;
+    const direction = t.side === "long" ? 1 : -1;
+    return ((t.exit_price - t.entry_price) * direction) / Math.abs(t.entry_price - t.stop_loss);
+  }
   const pnl = netPnl(t);
   const risk = initialRisk(t);
   return pnl === null || risk === null ? null : pnl / risk;

@@ -11,7 +11,7 @@ function trade(p: Partial<Trade>): Trade {
     id: nextId++, user_id: 1, symbol: "AAPL", asset_class: "stock", side: "long", quantity: 10,
     multiplier: 1, entry_date: "2026-03-02T09:30", entry_price: 100, exit_date: "2026-03-02T10:30",
     exit_price: 110, stop_loss: null, take_profit: null, fees: 0, setup: null, tags: null, notes: null,
-    rating: null, created_at: "", updated_at: "", ...p,
+    rating: null, source: "manual", external_id: null, broker_pnl: null, created_at: "", updated_at: "", ...p,
   };
 }
 

@@ -38,6 +38,7 @@ export function TradeForm({
     exit_price: num(values.exit_price),
     stop_loss: num(values.stop_loss),
     fees: num(values.fees) ?? 0,
+    broker_pnl: trade?.broker_pnl ?? null,
   };
   const pnl = preview.quantity && preview.entry_price ? netPnl(preview) : null;
   const r = pnl !== null ? rMultiple(preview) : null;
@@ -103,6 +104,9 @@ export function TradeForm({
             </b>
           </span>
           {r !== null && <span className="text-ink-2">R-multiple: <b className="tnum text-ink">{r.toFixed(2)}R</b></span>}
+          {trade?.source === "mt5" && (
+            <span className="text-xs text-muted">Synced from MT5. P&amp;L comes from your broker, and the next sync overwrites price and size edits.</span>
+          )}
         </div>
       </section>
 

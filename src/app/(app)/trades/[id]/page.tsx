@@ -28,6 +28,11 @@ export default async function TradePage(props: PageProps<"/trades/[id]">) {
       <Link href="/trades" className="text-sm text-ink-2 hover:text-ink">← Trades</Link>
       <PageHeader title={t.symbol} subtitle={`${t.asset_class} · opened ${formatDate(t.entry_date)}`}>
         <SideBadge side={t.side} />
+        {t.source === "mt5" && (
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-ink-2" title={`Position #${t.external_id?.split(":").pop()}`}>
+            MT5
+          </span>
+        )}
         <Link href={`/trades/${t.id}/edit`} className="btn-ghost">Edit</Link>
         <form action={removeTrade}>
           <input type="hidden" name="id" value={t.id} />
@@ -36,9 +41,9 @@ export default async function TradePage(props: PageProps<"/trades/[id]">) {
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Net P&L" value={pnl === null ? "Open" : formatMoney(pnl, c, true)} tone={toneOf(pnl)} hint={t.fees ? `after ${formatMoney(t.fees, c)} fees` : undefined} />
+        <Stat label="Net P&L" value={pnl === null ? "Open" : formatMoney(pnl, c, true)} tone={toneOf(pnl)} hint={t.broker_pnl !== null ? "as reported by MT5, after costs" : t.fees ? `after ${formatMoney(t.fees, c)} fees` : undefined} />
         <Stat label="Return" value={formatPct(returnPct(t), 2)} tone={toneOf(returnPct(t))} hint="price move, before fees" />
-        <Stat label="R-multiple" value={r === null ? "—" : `${r.toFixed(2)}R`} tone={toneOf(r)} hint={risk ? `risked ${formatMoney(risk, c)}` : "add a stop to track R"} />
+        <Stat label="R-multiple" value={r === null ? "—" : `${r.toFixed(2)}R`} tone={toneOf(r)} hint={t.broker_pnl !== null ? (r === null ? "no stop loss set" : "price move ÷ stop distance") : risk ? `risked ${formatMoney(risk, c)}` : "add a stop to track R"} />
         <Stat label="Hold time" value={formatDuration(hold)} />
       </div>
 

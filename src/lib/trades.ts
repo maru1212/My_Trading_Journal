@@ -24,7 +24,7 @@ type Row = Record<string, string | number | null>;
 function selectTrades() {
   const sql = db();
   return sql`
-    select id, user_id, ${sql(COLUMNS)},
+    select id, user_id, ${sql(COLUMNS)}, source, external_id, broker_pnl,
            created_at::text as created_at, updated_at::text as updated_at
       from trades`;
 }
