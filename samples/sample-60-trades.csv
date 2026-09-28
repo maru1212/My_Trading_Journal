@@ -1,0 +1,61 @@
+symbol,asset_class,side,quantity,multiplier,entry_date,entry_price,exit_date,exit_price,stop_loss,take_profit,fees,setup,tags,notes,rating
+NVDA,stock,long,10,1,2026-07-01T15:34,123.22,2026-07-01T15:59,121.99,121.99,,0.10,Reversal,"news",Sample trade 1,2
+TSLA,stock,long,100,1,2026-07-01T10:05,233.34,2026-07-01T11:35,231.01,231.01,,1.00,Breakout,"chase",Sample trade 2,2
+MSFT,stock,long,100,1,2026-07-01T10:02,423.21,2026-07-01T11:35,418.98,418.98,,1.00,VWAP reclaim,"",Sample trade 3,5
+AAPL,stock,short,20,1,2026-07-02T13:36,190.81,2026-07-02T14:40,192.72,192.72,,0.20,VWAP reclaim,"",Sample trade 4,2
+AAPL,stock,short,20,1,2026-07-03T14:34,190.73,2026-07-03T15:27,186.16,192.64,,0.20,Opening range,"news",Sample trade 5,5
+TSLA,stock,short,20,1,2026-07-06T13:19,244.24,2026-07-06T14:33,246.68,246.68,,0.20,VWAP reclaim,"chase",Sample trade 6,5
+AAPL,stock,long,20,1,2026-07-07T10:59,185.65,2026-07-07T11:31,188.43,183.79,,0.20,Breakout,"chase",Sample trade 7,2
+AMD,stock,long,50,1,2026-07-07T13:31,152.60,2026-07-07T14:37,154.89,151.08,,0.50,Breakout,"chase",Sample trade 8,2
+SPY,stock,long,10,1,2026-07-07T14:36,566.62,2026-07-07T15:43,569.45,560.95,,0.10,VWAP reclaim,"chase",Sample trade 9,5
+NVDA,stock,long,50,1,2026-07-07T13:07,116.56,2026-07-07T14:31,115.86,115.40,,0.50,Pullback,"A+",Sample trade 10,4
+TSLA,stock,long,10,1,2026-07-08T11:25,238.53,2026-07-08T12:35,237.10,236.14,,0.10,Pullback,"news",Sample trade 11,5
+NVDA,stock,long,100,1,2026-07-08T10:05,121.49,2026-07-08T11:11,120.03,120.27,,1.00,Pullback,"",Sample trade 12,3
+AMD,stock,long,10,1,2026-07-09T11:34,147.14,2026-07-09T12:23,146.26,145.67,,0.10,Reversal,"A+,morning",Sample trade 13,4
+MSFT,stock,short,10,1,2026-07-09T15:49,429.05,2026-07-09T15:55,418.75,433.34,,0.10,Opening range,"A+,morning",Sample trade 14,5
+AAPL,stock,long,10,1,2026-07-10T09:13,189.79,2026-07-10T10:28,187.51,187.89,,0.10,Breakout,"",Sample trade 15,4
+AAPL,stock,long,10,1,2026-07-10T13:01,184.30,2026-07-10T14:04,187.07,182.46,,0.10,Reversal,"",Sample trade 16,5
+NVDA,stock,short,50,1,2026-07-13T09:07,123.28,2026-07-13T10:54,120.32,124.51,,0.50,Opening range,"chase",Sample trade 17,5
+AAPL,stock,short,50,1,2026-07-14T11:53,185.94,2026-07-14T12:44,185.01,187.80,,0.50,Reversal,"",Sample trade 18,2
+AMD,stock,short,10,1,2026-07-15T10:41,148.76,2026-07-15T11:55,144.29,150.24,,0.10,VWAP reclaim,"A+",Sample trade 19,4
+NVDA,stock,short,50,1,2026-07-15T10:39,121.96,2026-07-15T11:51,120.62,123.18,,0.50,Pullback,"",Sample trade 20,5
+TSLA,stock,long,50,1,2026-07-15T09:50,235.68,2026-07-15T10:17,233.32,233.32,,0.50,VWAP reclaim,"chase",Sample trade 21,3
+NVDA,stock,short,50,1,2026-07-15T09:14,119.62,2026-07-15T10:06,117.83,120.82,,0.50,Opening range,"",Sample trade 22,3
+SPY,stock,short,10,1,2026-07-16T14:22,564.17,2026-07-16T15:51,550.63,569.81,,0.10,Breakout,"A+",Sample trade 23,5
+TSLA,stock,long,100,1,2026-07-16T10:05,239.68,2026-07-16T11:51,242.32,237.29,,1.00,Opening range,"chase",Sample trade 24,5
+AAPL,stock,long,20,1,2026-07-16T10:37,192.56,2026-07-16T11:57,190.64,190.64,,0.20,Pullback,"chase",Sample trade 25,5
+NVDA,stock,short,20,1,2026-07-16T09:51,117.52,2026-07-16T10:46,118.70,118.70,,0.20,Reversal,"A+",Sample trade 26,3
+TSLA,stock,long,10,1,2026-07-17T10:18,244.70,2026-07-17T11:32,245.92,242.25,,0.10,Reversal,"",Sample trade 27,4
+SPY,stock,long,50,1,2026-07-20T14:37,571.23,2026-07-20T15:52,584.94,565.52,,0.50,Opening range,"A+,morning",Sample trade 28,3
+AMD,stock,long,20,1,2026-07-21T09:49,150.09,2026-07-21T10:51,149.64,148.59,,0.20,Pullback,"",Sample trade 29,3
+MSFT,stock,long,50,1,2026-07-22T13:33,410.43,2026-07-22T14:35,414.95,406.33,,0.50,Breakout,"chase",Sample trade 30,2
+NVDA,stock,long,100,1,2026-07-23T09:48,116.70,2026-07-23T10:57,120.20,115.54,,1.00,Opening range,"A+",Sample trade 31,4
+AMD,stock,long,50,1,2026-07-23T13:34,150.96,2026-07-23T14:51,154.58,149.45,,0.50,Reversal,"chase",Sample trade 32,3
+NVDA,stock,long,100,1,2026-07-23T11:07,123.04,2026-07-23T12:25,122.31,121.81,,1.00,VWAP reclaim,"chase",Sample trade 33,2
+SPY,stock,short,50,1,2026-07-23T15:09,545.66,2026-07-23T15:45,551.11,551.11,,0.50,Pullback,"news",Sample trade 34,4
+SPY,stock,long,100,1,2026-07-23T10:42,550.58,2026-07-23T11:53,563.79,545.07,,1.00,Pullback,"",Sample trade 35,5
+SPY,stock,long,50,1,2026-07-23T09:46,554.59,2026-07-23T10:23,562.91,549.05,,0.50,VWAP reclaim,"A+",Sample trade 36,5
+AAPL,stock,short,50,1,2026-07-24T09:07,188.68,2026-07-24T10:58,183.02,190.57,,0.50,Breakout,"",Sample trade 37,2
+AAPL,stock,long,50,1,2026-07-27T15:27,194.63,2026-07-27T15:54,193.46,192.68,,0.50,Opening range,"news",Sample trade 38,3
+AMD,stock,short,50,1,2026-07-28T10:03,150.64,2026-07-28T11:51,152.14,152.14,,0.50,Opening range,"",Sample trade 39,2
+AAPL,stock,long,10,1,2026-07-29T15:14,191.53,2026-07-29T15:59,190.96,189.62,,0.10,Breakout,"news",Sample trade 40,5
+AMD,stock,long,20,1,2026-07-30T13:45,149.26,2026-07-30T14:15,147.77,147.77,,0.20,Pullback,"A+",Sample trade 41,4
+TSLA,stock,short,50,1,2026-07-31T15:13,246.22,2026-07-31T15:18,238.84,248.69,,0.50,Reversal,"chase",Sample trade 42,3
+AAPL,stock,long,10,1,2026-08-03T14:32,195.64,2026-08-03T15:35,193.68,193.68,,0.10,Reversal,"",Sample trade 43,5
+SPY,stock,short,100,1,2026-08-04T11:34,546.77,2026-08-04T12:53,540.76,552.24,,1.00,Reversal,"chase",Sample trade 44,4
+TSLA,stock,short,20,1,2026-08-04T10:03,237.73,2026-08-04T11:53,232.98,240.11,,0.20,Breakout,"",Sample trade 45,2
+NVDA,stock,long,10,1,2026-08-04T15:24,119.50,2026-08-04T15:55,120.82,118.31,,0.10,VWAP reclaim,"A+,morning",Sample trade 46,3
+AAPL,stock,long,50,1,2026-08-04T09:16,189.54,2026-08-04T10:23,194.09,187.64,,0.50,Reversal,"news",Sample trade 47,4
+NVDA,stock,long,10,1,2026-08-05T11:05,117.97,2026-08-05T12:30,119.74,116.79,,0.10,Reversal,"news",Sample trade 48,3
+AAPL,stock,long,20,1,2026-08-06T13:02,185.34,2026-08-06T14:25,189.04,183.48,,0.20,VWAP reclaim,"A+",Sample trade 49,4
+AAPL,stock,short,20,1,2026-08-06T14:50,190.98,2026-08-06T15:56,188.87,192.89,,0.20,Opening range,"A+,morning",Sample trade 50,4
+SPY,stock,short,20,1,2026-08-06T15:53,548.22,2026-08-06T15:59,553.70,553.70,,0.20,Opening range,"A+,morning",Sample trade 51,3
+AMD,stock,long,20,1,2026-08-06T09:02,150.62,2026-08-06T10:08,149.11,149.11,,0.20,Breakout,"news",Sample trade 52,5
+AMD,stock,long,20,1,2026-08-06T10:00,145.96,2026-08-06T11:29,149.46,144.50,,0.20,Reversal,"A+",Sample trade 53,2
+AAPL,stock,long,50,1,2026-08-06T15:16,192.80,2026-08-06T15:59,190.87,190.87,,0.50,Pullback,"",Sample trade 54,5
+SPY,stock,short,50,1,2026-08-07T13:40,545.78,2026-08-07T14:41,551.24,551.24,,0.50,Breakout,"",Sample trade 55,3
+MSFT,stock,long,20,1,2026-08-10T11:03,426.13,2026-08-10T12:31,421.87,421.87,,0.20,Breakout,"news",Sample trade 56,3
+NVDA,stock,long,100,1,2026-08-10T11:49,121.50,2026-08-10T12:07,124.42,120.29,,1.00,Pullback,"A+,morning",Sample trade 57,4
+SPY,stock,long,10,1,2026-08-10T11:17,543.79,2026-08-10T12:24,560.10,538.35,,0.10,Pullback,"",Sample trade 58,2
+TSLA,stock,long,50,1,2026-08-11T13:52,243.56,2026-08-11T14:40,242.10,241.13,,0.50,VWAP reclaim,"A+,morning",Sample trade 59,2
+TSLA,stock,long,100,1,2026-08-11T10:00,239.97,2026-08-11T11:31,237.57,237.57,,1.00,Opening range,"chase",Sample trade 60,4
