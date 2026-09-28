@@ -1,4 +1,4 @@
-export const ASSET_CLASSES = ["stock", "option", "future", "forex", "crypto", "other"] as const;
+export const ASSET_CLASSES = ["stock", "option", "future", "forex", "commodity", "crypto", "other"] as const;
 export type AssetClass = (typeof ASSET_CLASSES)[number];
 export type Side = "long" | "short";
 

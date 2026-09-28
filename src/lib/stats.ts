@@ -111,7 +111,8 @@ export function summarize(trades: Trade[], startingBalance = 0): Summary {
     const dd = peak - equity;
     if (dd > maxDrawdown) {
       maxDrawdown = dd;
-      maxDrawdownPct = peak > 0 ? (dd / peak) * 100 : null;
+      // A percentage only means something against a real account balance.
+      maxDrawdownPct = startingBalance > 0 ? (dd / peak) * 100 : null;
     }
   }
 

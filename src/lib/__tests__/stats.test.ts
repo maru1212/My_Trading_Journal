@@ -62,6 +62,12 @@ describe("summarize", () => {
     expect(s.currentStreak).toBe(1);
   });
 
+  it("omits drawdown % without a starting balance", () => {
+    const noBalance = summarize(trades);
+    expect(noBalance.maxDrawdown).toBe(150);
+    expect(noBalance.maxDrawdownPct).toBeNull();
+  });
+
   it("groups by day", () => {
     const days = dailyPnl(closedTrades(trades));
     expect(days.map((d) => [d.date, d.pnl])).toEqual([

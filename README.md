@@ -7,7 +7,7 @@ Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, Po
 ## Features
 
 - **Accounts** — email + password sign-up, hashed with scrypt; database-backed sessions in an httpOnly cookie. Every trade is private to its owner.
-- **Trade logging** — stocks, options, futures, forex, crypto. Long/short, quantity, contract multiplier, entry/exit date and price, stop loss, take profit, fees, setup, tags, notes and a 1–5 execution rating. Leave the exit empty to keep a position open. Live P&L and R preview while you type.
+- **Trade logging** — stocks, options, futures, forex, commodities (e.g. gold), crypto. Long/short, quantity, contract multiplier, entry/exit date and price, stop loss, take profit, fees, setup, tags, notes and a 1–5 execution rating. Leave the exit empty to keep a position open. Live P&L and R preview while you type.
 - **Dashboard** — net P&L, % return, win rate, profit factor, expectancy, average win/loss, payoff ratio, largest win/loss, max drawdown, win/loss streaks, average hold time, fees; equity curve, daily P&L chart and P&L by symbol. Filter by 7D / 30D / 90D / YTD / All.
 - **Trades list** — search, filter by symbol, setup, side, status and date range, with totals for the filtered set.
 - **Calendar** — monthly P&L heatmap with weekly totals; click a day to see its trades.
@@ -44,6 +44,15 @@ cp .env.example .env.local   # then paste your DATABASE_URL into .env.local
 npm run db:setup             # applies supabase/schema.sql (same as step 1.2)
 npm run dev                  # http://localhost:3000
 ```
+
+## Sample data
+
+Two 60-trade files in [`samples/`](samples) to try the importer (**Trades → Import**):
+
+- `sample-60-forex-gold.csv` — EURUSD, GBPUSD, AUDUSD, NZDUSD and XAUUSD. Quantity is in lots, with multiplier 100,000 per forex lot and 100 oz per gold lot, so P&L is in USD. Net P&L: **+$7,416.50**.
+- `sample-60-trades.csv` — US stocks. Net P&L: **+$4,017.70**.
+
+For forex, enter lots as quantity and the contract size as multiplier (100000 standard, 10000 mini, 1000 micro). P&L is in the pair's quote currency, so USD-quoted pairs match a USD account directly.
 
 ## Scripts
 
