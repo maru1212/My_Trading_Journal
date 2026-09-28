@@ -49,12 +49,14 @@ alter table users enable row level security;
 alter table sessions enable row level security;
 alter table trades enable row level security;
 
--- MetaTrader 5 sync (added later; safe to run on an existing database).
-alter table users add column if not exists api_key_hash text;
-alter table users add column if not exists api_key_hint text;
-alter table users add column if not exists mt5_last_sync_at timestamptz;
+-- MetaTrader 5 sync via MetaApi (added later; safe to run on an existing database).
+alter table users add column if not exists metaapi_account_id text;
+alter table users add column if not exists mt5_login text;
+alter table users add column if not exists mt5_server text;
 alter table users add column if not exists mt5_account text;
-create unique index if not exists users_api_key_idx on users (api_key_hash);
+alter table users add column if not exists mt5_sync_from timestamptz;
+alter table users add column if not exists mt5_last_sync_at timestamptz;
+alter table users add column if not exists mt5_last_error text;
 
 alter table trades add column if not exists source text not null default 'manual';
 alter table trades add column if not exists external_id text; -- 'mt5:<login>:<position id>'

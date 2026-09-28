@@ -8,8 +8,8 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = request.cookies.has("tj_session");
 
-  // The MT5 Expert Advisor authenticates with an API key, not a cookie.
-  if (pathname.startsWith("/api/mt5/")) return NextResponse.next();
+  // Vercel Cron authenticates with CRON_SECRET, not a cookie.
+  if (pathname.startsWith("/api/cron/")) return NextResponse.next();
 
   if (!hasSession && PROTECTED.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     const url = new URL("/login", request.url);

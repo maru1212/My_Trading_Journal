@@ -1,103 +1,202 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { createMt5Key, disconnectMt5 } from "@/app/actions/settings";
-import type { Mt5Status } from "@/lib/api-keys";
-import { formatDate } from "@/lib/format";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { connectMt5, disconnectMt5, getMt5Status, syncMt5 } from "@/app/actions/mt5";
+import type { Mt5Connection } from "@/lib/mt5-sync";
 
-function Copy({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false);
+function timeAgo(iso: string) {
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1440) return `${Math.round(mins / 60)} h ago`;
+  return new Date(iso).toLocaleString();
+}
+
+function Dot({ tone }: { tone: "ok" | "wait" | "bad" | "off" }) {
+  const cls = { ok: "bg-profit-fill", wait: "bg-[var(--warn)] animate-pulse", bad: "bg-loss-fill", off: "bg-surface-2 ring-1 ring-line" }[tone];
+  return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${cls}`} aria-hidden="true" />;
+}
+
+export function SyncButton({ className = "btn-ghost", onDone }: { className?: string; onDone?: (msg: { ok: boolean; message: string }) => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<{ ok: boolean; message: string } | null>(null);
   return (
-    <div>
-      <p className="label">{label}</p>
-      <div className="flex gap-2">
-        <code className="input flex-1 truncate font-mono text-xs leading-5 select-all">{value}</code>
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className={className}
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await syncMt5();
+            setMsg(r);
+            onDone?.(r);
+            router.refresh();
+          })
+        }
+      >
+        {pending ? "Syncing MT5…" : "Sync MT5"}
+      </button>
+      {msg && !onDone && <span className={`text-xs ${msg.ok ? "text-profit" : "text-loss"}`}>{msg.message}</span>}
+    </span>
+  );
+}
+
+function ConnectForm() {
+  const [state, action, pending] = useActionState(connectMt5, undefined);
+  const err = (k: string) => state?.errors?.[k]?.[0];
+  return (
+    <form action={action} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="mt5-login" className="label">Login (account number)</label>
+          <input id="mt5-login" name="login" inputMode="numeric" autoComplete="off" defaultValue={state?.values?.login} placeholder="51234567" className="input" required />
+          {err("login") && <p className="field-error">{err("login")}</p>}
+        </div>
+        <div>
+          <label htmlFor="mt5-password" className="label">Investor password</label>
+          <input id="mt5-password" name="password" type="password" autoComplete="new-password" className="input" required />
+          {err("password") && <p className="field-error">{err("password")}</p>}
+        </div>
+        <div>
+          <label htmlFor="mt5-server" className="label">Server</label>
+          <input id="mt5-server" name="server" autoComplete="off" defaultValue={state?.values?.server} placeholder="ICMarketsSC-Demo" className="input" required />
+          {err("server") && <p className="field-error">{err("server")}</p>}
+        </div>
+      </div>
+      <div className="max-w-xs">
+        <label htmlFor="mt5-history" className="label">Import history from the last</label>
+        <select id="mt5-history" name="history_days" defaultValue={state?.values?.history_days ?? "90"} className="input">
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+          <option value="180">6 months</option>
+          <option value="365">1 year</option>
+          <option value="730">2 years</option>
+        </select>
+      </div>
+      {state?.message && !state.ok && <p className="text-sm text-loss">{state.message}</p>}
+      <button className="btn-primary" disabled={pending}>{pending ? "Connecting… this can take a minute" : "Connect MT5"}</button>
+      <p className="text-xs text-muted">
+        Use your <b>investor (read-only) password</b>: it can see trades but can&apos;t place them. Your login and server are shown in
+        MT5 under <b>File → Login to Trade Account</b>. The password is passed to MetaApi, which runs the MT5 connection in the
+        cloud. TradeLog never stores it.
+      </p>
+    </form>
+  );
+}
+
+function Connected({ conn }: { conn: Mt5Connection }) {
+  const router = useRouter();
+  const [status, setStatus] = useState<{ state?: string; connectionStatus?: string; error?: string } | null>(null);
+  const [note, setNote] = useState<{ ok: boolean; message: string } | null>(null);
+  const [syncing, startSync] = useTransition();
+  const [removing, startRemove] = useTransition();
+  const firstSyncDone = useRef(false);
+  const ready = status?.state === "DEPLOYED" && status?.connectionStatus === "CONNECTED";
+
+  // Poll the connection until it's up (new accounts take 1–3 minutes to deploy).
+  useEffect(() => {
+    let stop = false;
+    let tries = 0;
+    async function poll() {
+      const s = await getMt5Status();
+      if (stop) return;
+      setStatus(s);
+      const up = s.state === "DEPLOYED" && s.connectionStatus === "CONNECTED";
+      if (!up && !s.error && tries++ < 60) setTimeout(poll, 5000);
+    }
+    poll();
+    return () => {
+      stop = true;
+    };
+  }, []);
+
+  // First sync runs automatically once the account is connected.
+  useEffect(() => {
+    if (ready && !conn.lastSync && !firstSyncDone.current) {
+      firstSyncDone.current = true;
+      startSync(async () => {
+        setNote(await syncMt5());
+        router.refresh();
+      });
+    }
+  }, [ready, conn.lastSync, router]);
+
+  let tone: "ok" | "wait" | "bad" = "wait";
+  let label = "Checking connection…";
+  if (status?.error) [tone, label] = ["bad", status.error];
+  else if (status && !ready) {
+    [tone, label] = status.state === "DEPLOY_FAILED" || status.connectionStatus === "DISCONNECTED_FROM_BROKER"
+      ? ["bad", "Can't reach your broker. Check the login, password and server, then disconnect and connect again."]
+      : ["wait", "Starting your MT5 connection… this usually takes 1–3 minutes"];
+  } else if (ready) [tone, label] = ["ok", "Connected"];
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="rounded-lg border border-line p-4">
+        <div className="flex items-start gap-2">
+          <span className="mt-1.5"><Dot tone={syncing ? "wait" : tone} /></span>
+          <div className="min-w-0">
+            <p className="font-medium">
+              {conn.login} · {conn.server}
+            </p>
+            <p className="text-ink-2">{syncing ? "Syncing trades…" : label}</p>
+            <p className="mt-1 text-xs text-muted">
+              {conn.lastSync ? `Last synced ${timeAgo(conn.lastSync)}` : "Not synced yet"}
+              {" · syncs automatically once a day"}
+            </p>
+          </div>
+        </div>
+        {conn.lastError && !note && <p className="mt-3 text-sm text-loss">Last sync failed: {conn.lastError}</p>}
+        {note && <p className={`mt-3 text-sm ${note.ok ? "text-profit" : "text-loss"}`}>{note.message}</p>}
+      </div>
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="btn-ghost shrink-0"
-          onClick={async () => {
-            await navigator.clipboard.writeText(value);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
+          className="btn-primary"
+          disabled={syncing || !ready}
+          onClick={() =>
+            startSync(async () => {
+              setNote(await syncMt5());
+              router.refresh();
+            })
+          }
+        >
+          {syncing ? "Syncing…" : "Sync now"}
+        </button>
+        <button
+          type="button"
+          className="btn-danger"
+          disabled={removing}
+          onClick={() => {
+            if (!confirm("Disconnect MT5? Syncing stops and the cloud connection is removed. Trades already synced stay in your journal.")) return;
+            startRemove(async () => {
+              const r = await disconnectMt5();
+              if (!r.ok) setNote({ ok: false, message: r.message ?? "Couldn't disconnect" });
+              router.refresh();
+            });
           }}
         >
-          {copied ? "Copied" : "Copy"}
+          {removing ? "Disconnecting…" : "Disconnect"}
         </button>
       </div>
     </div>
   );
 }
 
-export function Mt5Connect({ status, syncUrl }: { status: Mt5Status; syncUrl: string }) {
-  const [key, setKey] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const host = new URL(syncUrl).origin;
-
-  return (
-    <div className="space-y-5 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${status.lastSync ? "bg-profit-fill" : status.hint ? "bg-[var(--warn)]" : "bg-surface-2 ring-1 ring-line"}`} />
-        <span className="text-ink-2">
-          {status.lastSync
-            ? `Connected${status.account ? ` to ${status.account}` : ""} · last sync ${formatDate(status.lastSync.slice(0, 16).replace(" ", "T"))} (UTC)`
-            : status.hint
-              ? "Key created — waiting for the first sync from MT5"
-              : "Not connected"}
-        </span>
+export function Mt5Connect({ conn }: { conn: Mt5Connection }) {
+  if (!conn.configured) {
+    return (
+      <div className="space-y-2 text-sm text-ink-2">
+        <p>MT5 connection isn&apos;t set up on this server yet.</p>
+        <p>
+          Create a free account at <a href="https://app.metaapi.cloud" target="_blank" rel="noreferrer" className="text-accent hover:underline">metaapi.cloud</a>,
+          copy your API token, and add it in Vercel as the environment variable <code className="font-mono text-xs">METAAPI_TOKEN</code>. Then redeploy.
+        </p>
       </div>
-
-      {key ? (
-        <div className="space-y-3 rounded-lg border border-line bg-surface-2 p-4">
-          <Copy label="Your API key — copy it now, it won't be shown again" value={key} />
-        </div>
-      ) : (
-        status.hint && <p className="text-ink-2">Current key: <code className="font-mono text-xs">{status.hint}</code></p>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={pending}
-          onClick={() => {
-            if (status.hint && !confirm("Create a new key? The old key stops working and you'll need to paste the new one into MT5.")) return;
-            start(async () => setKey((await createMt5Key()).key));
-          }}
-        >
-          {status.hint ? "Create new key" : "Create API key"}
-        </button>
-        <a href="/TradeLogSync.mq5" download className="btn-ghost">Download EA (TradeLogSync.mq5)</a>
-        {status.hint && (
-          <button
-            type="button"
-            className="btn-danger"
-            disabled={pending}
-            onClick={() => {
-              if (!confirm("Disconnect MT5? The EA will stop syncing. Trades already synced stay in your journal.")) return;
-              start(async () => {
-                await disconnectMt5();
-                setKey(null);
-              });
-            }}
-          >
-            Disconnect
-          </button>
-        )}
-      </div>
-
-      <Copy label="Sync URL (paste into the EA's ApiUrl input)" value={syncUrl} />
-
-      <ol className="list-decimal space-y-1.5 pl-5 text-ink-2">
-        <li>Create an API key above and download the EA.</li>
-        <li>In MT5: <b>File → Open Data Folder</b>, then put the file in <code>MQL5/Experts</code>. Restart MT5 or right-click <b>Expert Advisors → Refresh</b> in the Navigator.</li>
-        <li><b>Tools → Options → Expert Advisors</b>: tick <b>Allow WebRequest for listed URL</b> and add <code>{host}</code>.</li>
-        <li>Drag <b>TradeLogSync</b> onto any chart. On the <b>Inputs</b> tab paste the sync URL and API key, then click OK. Turn on <b>Algo Trading</b> in the toolbar.</li>
-        <li>Check the <b>Experts</b> tab at the bottom of MT5 for “TradeLog: synced …”. Trades appear here within a minute of closing.</li>
-      </ol>
-      <p className="text-xs text-muted">
-        The EA only reads your history. It never places or changes orders. Keep MT5 running (or on a VPS) for live syncing; when it
-        restarts it catches up automatically. Times are your broker&apos;s server time.
-      </p>
-    </div>
-  );
+    );
+  }
+  return conn.accountId ? <Connected key={conn.accountId} conn={conn} /> : <ConnectForm />;
 }

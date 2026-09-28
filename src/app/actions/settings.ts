@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { hashPassword, requireUser, verifyPassword } from "@/lib/auth";
-import { rotateApiKey, revokeApiKey } from "@/lib/api-keys";
 import { db } from "@/lib/db";
 import { echo, passwordSchema, settingsSchema, type FormState } from "@/lib/validation";
 
@@ -37,15 +36,3 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
   return { ok: true, message: "Password updated" };
 }
 
-export async function createMt5Key(): Promise<{ key: string }> {
-  const user = await requireUser();
-  const key = await rotateApiKey(user.id);
-  revalidatePath("/settings");
-  return { key };
-}
-
-export async function disconnectMt5() {
-  const user = await requireUser();
-  await revokeApiKey(user.id);
-  revalidatePath("/settings");
-}

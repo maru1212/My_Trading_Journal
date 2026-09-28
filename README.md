@@ -12,7 +12,7 @@ Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, Po
 - **Trades list** — search, filter by symbol, setup, side, status and date range, with totals for the filtered set.
 - **Calendar** — monthly P&L heatmap with weekly totals; click a day to see its trades.
 - **Analytics** — breakdowns by setup, symbol, tag, day of week, hour of day, long vs short and asset class, plus an R-multiple distribution.
-- **MetaTrader 5 sync**: a read-only Expert Advisor sends your closed and open positions automatically. Details below.
+- **MetaTrader 5 sync**: connect with your account login, investor password and server. Trades are logged automatically. Details below.
 - **CSV import / export** — import from a spreadsheet or broker export (validated row by row, all-or-nothing), export any filtered view.
 - **Settings** — name, currency, starting balance (anchors the equity curve and drawdown), change password.
 - Light and dark mode (follows your OS), responsive down to phone width.
@@ -48,22 +48,27 @@ npm run dev                  # http://localhost:3000
 
 ## MetaTrader 5 sync
 
-The `TradeLogSync` Expert Advisor ([`public/TradeLogSync.mq5`](public/TradeLogSync.mq5), also downloadable from **Settings → MetaTrader 5**) runs inside your MT5 terminal and posts positions to `/api/mt5/trades`.
+MT5 has no web API of its own, so TradeLog uses [MetaApi](https://metaapi.cloud). It runs an MT5 terminal in the cloud for your account, and the app reads your history through it. No Expert Advisor is needed, and your computer doesn't have to be on.
 
-1. **Settings → MetaTrader 5 → Create API key**, then download the EA.
-2. MT5: **File → Open Data Folder**, put the file in `MQL5/Experts`, then refresh **Expert Advisors** in the Navigator. MT5 compiles it on first load.
-3. **Tools → Options → Expert Advisors**: tick **Allow WebRequest for listed URL** and add your app's address (e.g. `https://your-app.vercel.app`).
-4. Drag **TradeLogSync** onto any chart, paste the sync URL and API key into **Inputs**, and turn on **Algo Trading**.
+**One-time setup (app owner)**
 
-How it works:
+1. Create an account at [app.metaapi.cloud](https://app.metaapi.cloud) and copy your **API access token** (in the MetaApi dashboard, under API access).
+2. In Vercel → **Settings → Environment Variables**, add:
+   - `METAAPI_TOKEN`: the MetaApi token.
+   - `CRON_SECRET`: any long random string. It lets the daily auto-sync run.
+3. Redeploy. Re-run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL editor if you haven't since the MT5 update.
 
-- On the first run it sends the last 90 days (`InpHistoryDays`), then syncs every minute and right after each trade. Every run re-sends the last 2 days, so partial closes and swaps stay correct.
-- Deals are grouped per position (partial closes are averaged). P&L is the broker's figure in your account currency: profit + commission + swap + fees.
-- Re-sending is safe. Positions are matched by account and position ID. Your setup, tags, notes and rating are never overwritten.
-- It only reads history. It never opens, closes or modifies orders. It needs MT5 running (a VPS works for 24/7 syncing), and times are your broker's server time.
-- Netting accounts that reverse a position in one deal are not split into two trades.
+**Connecting an account (in the app)**
 
-**Upgrading an existing database:** re-run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL editor (or `npm run db:setup`) to add the MT5 columns. It is safe to run again.
+**Settings → MetaTrader 5**: enter the MT5 **login** (account number), **investor password** and **server** (as shown in MT5 under *File → Login to Trade Account*), choose how much history to import, and click **Connect MT5**. The cloud terminal takes 1–3 minutes to start, then the first sync runs automatically.
+
+- **Sync now** is on the Settings and Trades pages. A cron job (`vercel.json`) also syncs every connected account once a day.
+- Use the **investor (read-only) password**. It can read trades but can't trade. TradeLog passes it to MetaApi when connecting and never stores it.
+- Deals are grouped into positions (partial closes are volume-weighted). P&L is the broker's figure in your account currency: profit + commission + swap.
+- Syncing is idempotent: positions are matched by account and position ID. Your setup, tags, notes and rating are never overwritten.
+- **Disconnect** removes the cloud terminal from MetaApi (which stops its billing). Trades already synced stay.
+- MetaApi is a paid third-party service; see their pricing. Each connected account uses one MetaApi account.
+- For local development without MetaApi, set `METAAPI_TOKEN=mock` to use a fake account with sample trades.
 
 ## Sample data
 
@@ -84,6 +89,14 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript |
 | `npm run db:setup` | Create or update the database tables (safe to re-run) |
+
+## Environment variables
+
+| Name | Required | What it is |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | Supabase transaction-pooler connection string |
+| `METAAPI_TOKEN` | for MT5 | MetaApi API access token (`mock` for local testing) |
+| `CRON_SECRET` | for daily MT5 sync | Any long random string; Vercel Cron sends it to `/api/cron/mt5-sync` |
 
 ## How P&L is calculated
 

@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SyncButton } from "@/components/mt5-connect";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, TradeTable } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { formatMoney, formatPct, pnlClass } from "@/lib/format";
+import { getConnection } from "@/lib/mt5-sync";
 import { summarize } from "@/lib/stats";
 import { distinctValues, listTrades, type TradeFilters } from "@/lib/trades";
 
 export const metadata: Metadata = { title: "Trades" };
+// "Sync MT5" runs a server action from this page.
+export const maxDuration = 300;
 
 const PAGE_SIZE = 50;
 
@@ -25,6 +29,7 @@ export default async function TradesPage(props: PageProps<"/trades">) {
     to: str("to"),
   };
   const page = Math.max(1, Number(str("page")) || 1);
+  const mt5 = await getConnection(user.id);
   const trades = await listTrades(user.id, filters);
   const s = summarize(trades);
   const symbols = await distinctValues(user.id, "symbol");
@@ -44,6 +49,7 @@ export default async function TradesPage(props: PageProps<"/trades">) {
   return (
     <>
       <PageHeader title="Trades" subtitle={`${trades.length} trade${trades.length === 1 ? "" : "s"}${filtered ? " match your filters" : ""}`}>
+        {mt5.configured && mt5.accountId && <SyncButton />}
         <Link href="/trades/import" className="btn-ghost">Import</Link>
         <a href={`/api/trades/export${exportQuery ? `?${exportQuery}` : ""}`} className="btn-ghost">Export CSV</a>
         <Link href="/trades/new" className="btn-primary">+ Log trade</Link>

@@ -1,45 +1,24 @@
-import { z } from "zod";
+import type { BridgeSnapshot } from "./metaapi";
 import type { AssetClass } from "./types";
 
-/** "2026.07.01 10:05", "2026-07-01 10:05:33" or ISO → "2026-07-01T10:05" (broker server time). */
-const mt5Time = z
-  .string()
-  .trim()
-  .regex(/^\d{4}[.-]\d{2}[.-]\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/, "Expected YYYY.MM.DD HH:MM")
-  .transform((s) => s.replace(/\./g, "-").replace(" ", "T").slice(0, 16));
-
-// MT5 reports "no stop" as 0.
-const price = z.number().finite().nullish().transform((v) => (v && v > 0 ? v : null));
-const money = z.number().finite().default(0);
-
-export const mt5PositionSchema = z.object({
-  position_id: z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative()]).transform(String),
-  symbol: z.string().trim().min(1).max(30),
-  path: z.string().max(200).optional(),
-  type: z.enum(["buy", "sell"]),
-  volume: z.number().positive(),
-  contract_size: z.number().positive().default(1),
-  open_time: mt5Time,
-  open_price: z.number().positive(),
-  close_time: mt5Time.nullish(),
-  close_price: price,
-  sl: price,
-  tp: price,
-  commission: money,
-  swap: money,
-  fee: money,
-  profit: z.number().finite().nullish(),
-  comment: z.string().max(200).optional(),
-});
-
-export const mt5PayloadSchema = z.object({
-  login: z.union([z.string().regex(/^\d+$/), z.number().int()]).transform(String),
-  server: z.string().max(100).optional(),
-  currency: z.string().max(10).optional(),
-  positions: z.array(mt5PositionSchema).max(500),
-});
-
-export type Mt5Position = z.infer<typeof mt5PositionSchema>;
+/** One MT5 position, rebuilt from its deals. Times are broker server time, "YYYY-MM-DDTHH:mm". */
+export type Mt5Position = {
+  position_id: string;
+  symbol: string;
+  path?: string;
+  type: "buy" | "sell";
+  volume: number;
+  contract_size: number;
+  open_time: string;
+  open_price: number;
+  close_time: string | null;
+  close_price: number | null;
+  sl: number | null;
+  tp: number | null;
+  commission: number;
+  swap: number;
+  profit: number | null; // realized, before commission and swap; null while open
+};
 
 export function guessAssetClass(symbol: string, path = ""): AssetClass {
   const s = symbol.toUpperCase();
@@ -52,26 +31,106 @@ export function guessAssetClass(symbol: string, path = ""): AssetClass {
   return "other";
 }
 
+function guessContractSize(symbol: string) {
+  const c = guessAssetClass(symbol);
+  if (c === "forex") return 100_000;
+  if (/^XAU/i.test(symbol)) return 100;
+  if (/^XAG/i.test(symbol)) return 5_000;
+  return 1;
+}
+
+/** "2026-07-01 10:05:33.123" → "2026-07-01T10:05" */
+export function brokerMinute(t: string) {
+  return t.replace(" ", "T").slice(0, 16);
+}
+
+const positive = (v: number | undefined) => (v && v > 0 ? v : null);
+
+/**
+ * Groups deals into positions. Partial entries/exits are volume-weighted; costs and
+ * profit are summed across all deals. Open positions come from the live position list.
+ */
+export function positionsFromSnapshot(snap: BridgeSnapshot): Mt5Position[] {
+  const open = new Map(snap.positions.map((p) => [String(p.id), p]));
+  const groups = new Map<string, BridgeSnapshot["deals"]>();
+  for (const d of snap.deals) {
+    if ((d.type !== "DEAL_TYPE_BUY" && d.type !== "DEAL_TYPE_SELL") || !d.positionId) continue;
+    groups.set(d.positionId, [...(groups.get(d.positionId) ?? []), d]);
+  }
+
+  const result: Mt5Position[] = [];
+  const ids = new Set([...groups.keys(), ...open.keys()]);
+  for (const id of ids) {
+    const deals = [...(groups.get(id) ?? [])].sort((a, b) => a.brokerTime.localeCompare(b.brokerTime));
+    const ins = deals.filter((d) => d.entryType === "DEAL_ENTRY_IN");
+    const outs = deals.filter((d) => d.entryType !== "DEAL_ENTRY_IN");
+    const live = open.get(id);
+    const sum = (xs: typeof deals, f: (d: (typeof deals)[number]) => number) => xs.reduce((a, d) => a + f(d), 0);
+
+    const inVol = sum(ins, (d) => d.volume ?? 0);
+    const outVol = sum(outs, (d) => d.volume ?? 0);
+    let symbol: string, type: "buy" | "sell", volume: number, openPrice: number, openTime: string;
+    if (ins.length && inVol > 0) {
+      symbol = ins[0].symbol ?? live?.symbol ?? "";
+      type = ins[0].type === "DEAL_TYPE_BUY" ? "buy" : "sell";
+      volume = inVol;
+      openPrice = sum(ins, (d) => (d.volume ?? 0) * (d.price ?? 0)) / inVol;
+      openTime = ins[0].brokerTime;
+    } else if (live) {
+      symbol = live.symbol;
+      type = live.type === "POSITION_TYPE_BUY" ? "buy" : "sell";
+      volume = live.volume;
+      openPrice = live.openPrice;
+      openTime = live.brokerTime;
+    } else {
+      continue; // exit without a known entry
+    }
+    if (!symbol || !(openPrice > 0)) continue;
+
+    const closed = !live && outVol > 0;
+    const lastOut = outs.at(-1);
+    const spec = snap.specs[symbol] ?? {};
+    result.push({
+      position_id: id,
+      symbol,
+      path: spec.path,
+      type,
+      volume: Math.round(volume * 1e6) / 1e6,
+      contract_size: spec.contractSize && spec.contractSize > 0 ? spec.contractSize : guessContractSize(symbol),
+      open_time: brokerMinute(openTime),
+      open_price: openPrice,
+      close_time: closed ? brokerMinute(lastOut!.brokerTime) : null,
+      close_price: closed ? sum(outs, (d) => (d.volume ?? 0) * (d.price ?? 0)) / outVol : null,
+      sl: positive(live ? live.stopLoss : (lastOut?.stopLoss ?? ins[0]?.stopLoss)) ?? positive(ins[0]?.stopLoss),
+      tp: positive(live ? live.takeProfit : (lastOut?.takeProfit ?? ins[0]?.takeProfit)) ?? positive(ins[0]?.takeProfit),
+      commission: sum(deals, (d) => d.commission ?? 0),
+      swap: live ? (live.swap ?? 0) : sum(deals, (d) => d.swap ?? 0),
+      profit: closed ? sum(outs, (d) => d.profit ?? 0) : null,
+    });
+  }
+  return result;
+}
+
 /** Maps one MT5 position to trade columns. Journal fields (setup, tags, notes, rating) are left alone. */
 export function toTradeRow(userId: number, login: string, p: Mt5Position) {
-  const closed = p.close_price !== null && p.close_time != null;
-  const costs = p.commission + p.swap + p.fee; // negative when you pay
+  const closed = p.close_price !== null && p.close_time !== null;
+  const costs = p.commission + p.swap; // negative when you pay
   return {
     user_id: userId,
     source: "mt5",
     external_id: `mt5:${login}:${p.position_id}`,
-    symbol: p.symbol.toUpperCase(),
+    symbol: p.symbol.toUpperCase().slice(0, 20),
     asset_class: guessAssetClass(p.symbol, p.path),
     side: p.type === "buy" ? "long" : "short",
     quantity: p.volume,
     multiplier: p.contract_size,
     entry_date: p.open_time,
     entry_price: p.open_price,
-    exit_date: closed ? p.close_time! : null,
+    exit_date: closed ? p.close_time : null,
     exit_price: closed ? p.close_price : null,
     stop_loss: p.sl,
     take_profit: p.tp,
     fees: Math.round(-costs * 100) / 100,
-    broker_pnl: closed && p.profit != null ? Math.round((p.profit + costs) * 100) / 100 : null,
+    broker_pnl: closed && p.profit !== null ? Math.round((p.profit + costs) * 100) / 100 : null,
   };
 }
