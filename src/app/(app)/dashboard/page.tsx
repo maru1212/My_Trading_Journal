@@ -15,7 +15,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
   const user = await requireUser();
   const range = parseRange((await props.searchParams).range);
   const from = rangeStart(range);
-  const trades = listTrades(user.id, { from });
+  const trades = await listTrades(user.id, { from });
   const c = user.currency;
 
   if (trades.length === 0 && range === "all") {
@@ -38,7 +38,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
 
   // Equity starts from the balance at the beginning of the range.
   const priorPnl = from
-    ? closedTrades(listTrades(user.id, { to: prevDay(from) })).reduce((a, t) => a + t.pnl, 0)
+    ? closedTrades(await listTrades(user.id, { to: prevDay(from) })).reduce((a, t) => a + t.pnl, 0)
     : 0;
   const baseline = user.starting_balance + priorPnl;
   const s = summarize(trades, baseline);

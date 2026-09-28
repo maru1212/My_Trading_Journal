@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Analytics" };
 export default async function AnalyticsPage(props: PageProps<"/analytics">) {
   const user = await requireUser();
   const range = parseRange((await props.searchParams).range);
-  const closed = closedTrades(listTrades(user.id, { from: rangeStart(range), status: "closed" }));
+  const closed = closedTrades(await listTrades(user.id, { from: rangeStart(range), status: "closed" }));
   const c = user.currency;
 
   const header = (

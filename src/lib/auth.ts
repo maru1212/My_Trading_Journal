@@ -43,10 +43,9 @@ function hashToken(token: string) {
 export async function createSession(userId: number) {
   const token = crypto.randomBytes(32).toString("base64url");
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-  db.prepare(
-    "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
-  ).run(hashToken(token), userId, expires.toISOString());
-  db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(new Date().toISOString());
+  const sql = db();
+  await sql`insert into sessions (token_hash, user_id, expires_at) values (${hashToken(token)}, ${userId}, ${expires})`;
+  await sql`delete from sessions where expires_at < now()`;
 
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
@@ -61,7 +60,7 @@ export async function createSession(userId: number) {
 export async function destroySession() {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  if (token) db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
+  if (token) await db()`delete from sessions where token_hash = ${hashToken(token)}`;
   store.delete(SESSION_COOKIE);
 }
 
@@ -69,13 +68,10 @@ export async function destroySession() {
 export const getCurrentUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const row = db
-    .prepare(
-      `SELECT u.id, u.email, u.name, u.currency, u.starting_balance
-         FROM sessions s JOIN users u ON u.id = s.user_id
-        WHERE s.token_hash = ? AND s.expires_at > ?`,
-    )
-    .get(hashToken(token), new Date().toISOString()) as User | undefined;
+  const [row] = await db()<User[]>`
+    select u.id, u.email, u.name, u.currency, u.starting_balance
+      from sessions s join users u on u.id = s.user_id
+     where s.token_hash = ${hashToken(token)} and s.expires_at > now()`;
   return row ?? null;
 });
 

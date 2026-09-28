@@ -21,10 +21,10 @@ export async function saveTrade(_prev: FormState, formData: FormData): Promise<F
 
   let tradeId: number;
   if (id) {
-    if (!updateTrade(user.id, id, parsed.data)) return { message: "Trade not found" };
+    if (!await updateTrade(user.id, id, parsed.data)) return { message: "Trade not found" };
     tradeId = id;
   } else {
-    tradeId = createTrade(user.id, parsed.data);
+    tradeId = await createTrade(user.id, parsed.data);
   }
   refresh();
   redirect(`/trades/${tradeId}`);
@@ -32,7 +32,7 @@ export async function saveTrade(_prev: FormState, formData: FormData): Promise<F
 
 export async function removeTrade(formData: FormData) {
   const user = await requireUser();
-  deleteTrade(user.id, Number(formData.get("id")));
+  await deleteTrade(user.id, Number(formData.get("id")));
   refresh();
   redirect("/trades");
 }
@@ -41,7 +41,7 @@ export async function importTrades(_prev: FormState, formData: FormData): Promis
   const user = await requireUser();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { message: "Choose a CSV file to import" };
-  if (file.size > 5_000_000) return { message: "File is larger than 5 MB" };
+  if (file.size > 3_900_000) return { message: "File is larger than 3.9 MB" };
 
   const rows = parseCsv(await file.text());
   if (rows.length < 2) return { message: "The file has no data rows" };
@@ -77,7 +77,7 @@ export async function importTrades(_prev: FormState, formData: FormData): Promis
       }`,
     };
   }
-  const count = createTrades(user.id, inputs);
+  const count = await createTrades(user.id, inputs);
   refresh();
   return { ok: true, message: `Imported ${count} trade${count === 1 ? "" : "s"}.` };
 }

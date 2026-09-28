@@ -16,9 +16,9 @@ export async function updateSettings(_prev: FormState, formData: FormData): Prom
   } catch {
     return { errors: { currency: ["Unknown currency code"] }, values };
   }
-  db.prepare("UPDATE users SET name = ?, currency = ?, starting_balance = ? WHERE id = ?").run(
-    name, currency, starting_balance, user.id,
-  );
+  await db()`
+    update users set name = ${name}, currency = ${currency}, starting_balance = ${starting_balance}
+     where id = ${user.id}`;
   revalidatePath("/", "layout");
   return { ok: true, message: "Settings saved" };
 }
@@ -27,14 +27,11 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
   const user = await requireUser();
   const parsed = passwordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
-  const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(user.id) as {
-    password_hash: string;
-  };
+  const sql = db();
+  const [row] = await sql<{ password_hash: string }[]>`select password_hash from users where id = ${user.id}`;
   if (!(await verifyPassword(parsed.data.current, row.password_hash))) {
     return { errors: { current: ["Current password is incorrect"] } };
   }
-  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
-    await hashPassword(parsed.data.next), user.id,
-  );
+  await sql`update users set password_hash = ${await hashPassword(parsed.data.next)} where id = ${user.id}`;
   return { ok: true, message: "Password updated" };
 }

@@ -25,10 +25,10 @@ export default async function TradesPage(props: PageProps<"/trades">) {
     to: str("to"),
   };
   const page = Math.max(1, Number(str("page")) || 1);
-  const trades = listTrades(user.id, filters);
+  const trades = await listTrades(user.id, filters);
   const s = summarize(trades);
-  const symbols = distinctValues(user.id, "symbol");
-  const setups = distinctValues(user.id, "setup");
+  const symbols = await distinctValues(user.id, "symbol");
+  const setups = await distinctValues(user.id, "setup");
   const filtered = Object.values(filters).some(Boolean);
   const pages = Math.max(1, Math.ceil(trades.length / PAGE_SIZE));
   const exportQuery = new URLSearchParams(

@@ -1,66 +1,24 @@
 import "server-only";
-import Database from "better-sqlite3";
-import fs from "node:fs";
-import path from "node:path";
+import postgres from "postgres";
 
-const DB_PATH =
-  process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "journal.db");
+const globalForDb = globalThis as unknown as { __journalSql?: postgres.Sql };
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS users (
-  id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  name             TEXT NOT NULL,
-  password_hash    TEXT NOT NULL,
-  currency         TEXT NOT NULL DEFAULT 'USD',
-  starting_balance REAL NOT NULL DEFAULT 0,
-  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS sessions (
-  token_hash TEXT PRIMARY KEY,
-  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
-
-CREATE TABLE IF NOT EXISTS trades (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  symbol      TEXT NOT NULL,
-  asset_class TEXT NOT NULL DEFAULT 'stock',
-  side        TEXT NOT NULL CHECK (side IN ('long', 'short')),
-  quantity    REAL NOT NULL,
-  multiplier  REAL NOT NULL DEFAULT 1,
-  entry_date  TEXT NOT NULL,
-  entry_price REAL NOT NULL,
-  exit_date   TEXT,
-  exit_price  REAL,
-  stop_loss   REAL,
-  take_profit REAL,
-  fees        REAL NOT NULL DEFAULT 0,
-  setup       TEXT,
-  tags        TEXT,
-  notes       TEXT,
-  rating      INTEGER,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_trades_user_date ON trades(user_id, entry_date);
-`;
-
-function open() {
-  if (DB_PATH !== ":memory:") {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  }
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  db.exec(SCHEMA);
-  return db;
+/**
+ * Shared Postgres pool, created on first use so builds don't need DATABASE_URL.
+ * Reused across hot reloads in development and warm serverless invocations.
+ */
+export function db(): postgres.Sql {
+  if (globalForDb.__journalSql) return globalForDb.__journalSql;
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set. See README → Setup.");
+  const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
+  globalForDb.__journalSql = postgres(url, {
+    // Supabase's transaction pooler (port 6543) does not support prepared statements.
+    prepare: false,
+    // Serverless functions each hold their own pool; keep it small.
+    max: process.env.VERCEL ? 1 : 5,
+    idle_timeout: 20,
+    ssl: local ? false : "require",
+  });
+  return globalForDb.__journalSql;
 }
-
-// Reuse one connection across hot reloads in development.
-const globalForDb = globalThis as unknown as { __journalDb?: Database.Database };
-export const db = globalForDb.__journalDb ?? open();
-if (process.env.NODE_ENV !== "production") globalForDb.__journalDb = db;

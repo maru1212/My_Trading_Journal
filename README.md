@@ -2,7 +2,7 @@
 
 A full-stack trading journal: log trades, track P&L, and find out which setups actually make money.
 
-Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, SQLite (`better-sqlite3`) and Recharts.
+Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, Postgres on [Supabase](https://supabase.com) and Recharts. Deploys to [Vercel](https://vercel.com).
 
 ## Features
 
@@ -16,18 +16,34 @@ Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, SQ
 - **Settings** — name, currency, starting balance (anchors the equity curve and drawdown), change password.
 - Light and dark mode (follows your OS), responsive down to phone width.
 
-## Getting started
+## Setup: Supabase + Vercel
+
+### 1. Create the database (Supabase)
+
+1. Sign in at [supabase.com](https://supabase.com) → **New project**. Pick a region near you and **save the database password** you set.
+2. When the project is ready, open **SQL Editor** → **New query**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**. You should see "Success. No rows returned".
+3. Click **Connect** (top of the project page) → **Connection string** tab → choose **Transaction pooler** (port `6543`). Copy the URI and replace `[YOUR-PASSWORD]` with your database password. This is your `DATABASE_URL`.
+
+> If your password contains special characters (`@`, `#`, `/`, `%`, …), URL-encode them, or reset the password to letters and numbers under **Project Settings → Database**.
+
+### 2. Deploy (Vercel)
+
+1. Sign in at [vercel.com](https://vercel.com) with GitHub → **Add New… → Project** → import this repository.
+2. Leave the framework preset as **Next.js**. Open **Environment Variables** and add `DATABASE_URL` with the value from step 1.3.
+3. Click **Deploy**. When it finishes, open the URL, create an account and start logging trades.
+
+Changing `DATABASE_URL` later requires a redeploy (**Deployments → ⋯ → Redeploy**).
+
+### Run it locally (optional)
 
 Requires Node.js 20.9+.
 
 ```bash
 npm install
-npm run dev
+cp .env.example .env.local   # then paste your DATABASE_URL into .env.local
+npm run db:setup             # applies supabase/schema.sql (same as step 1.2)
+npm run dev                  # http://localhost:3000
 ```
-
-Open http://localhost:3000, create an account, and log a trade. A CSV template is available on the **Import** page.
-
-The database is created automatically at `data/journal.db`. Set `DATABASE_PATH` to put it elsewhere.
 
 ## Scripts
 
@@ -38,6 +54,7 @@ The database is created automatically at `data/journal.db`. Set `DATABASE_PATH` 
 | `npm test` | Unit tests for P&L math, stats, CSV and validation |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript |
+| `npm run db:setup` | Create or update the database tables (safe to re-run) |
 
 ## How P&L is calculated
 
@@ -48,16 +65,11 @@ The database is created automatically at `data/journal.db`. Set `DATABASE_PATH` 
 - **Max drawdown** is the largest peak-to-trough fall of the equity curve, starting from your starting balance.
 - Dates are stored as entered (your local time). Daily and calendar figures use the day a trade closed.
 
-## Deploying
+## Security notes
 
-SQLite needs a persistent disk, so deploy to a host with one (a VPS, Fly.io or Railway with a volume, Render with a disk, etc.) and point `DATABASE_PATH` at the volume:
-
-```bash
-npm ci && npm run build
-DATABASE_PATH=/data/journal.db npm start
-```
-
-Serverless hosts without a persistent filesystem (e.g. Vercel) need the data layer in `src/lib/db.ts` and `src/lib/trades.ts` swapped for a hosted database such as Postgres.
+- Passwords are hashed with scrypt; sessions are random tokens stored hashed, sent as an httpOnly cookie.
+- The app talks to Postgres directly with `DATABASE_URL` (server-side only). Row-level security is enabled on all tables with no policies, so Supabase's public REST API cannot read them even with the anon key.
+- Keep `DATABASE_URL` secret. Never commit `.env.local`.
 
 ## Project layout
 
@@ -71,11 +83,13 @@ src/
     page.tsx            landing page
   components/           UI, charts, forms
   lib/
-    db.ts               SQLite connection + schema
+    db.ts               Postgres connection pool
     auth.ts             passwords and sessions
     trades.ts           trade queries
     trade-math.ts       per-trade P&L, R, return
     stats.ts            summary stats, equity curve, breakdowns
     validation.ts       zod schemas
   proxy.ts              redirects signed-out users away from app pages
+supabase/schema.sql     database tables
+scripts/db-setup.mjs    applies the schema to DATABASE_URL
 ```

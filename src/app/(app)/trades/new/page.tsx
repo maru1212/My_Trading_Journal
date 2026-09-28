@@ -13,7 +13,7 @@ export default async function NewTradePage() {
   return (
     <div className="max-w-4xl">
       <PageHeader title="Log a trade" subtitle="Leave the exit empty to keep the position open." />
-      <TradeForm currency={user.currency} setups={distinctValues(user.id, "setup")} now={now.toISOString().slice(0, 16)} />
+      <TradeForm currency={user.currency} setups={await distinctValues(user.id, "setup")} now={now.toISOString().slice(0, 16)} />
     </div>
   );
 }

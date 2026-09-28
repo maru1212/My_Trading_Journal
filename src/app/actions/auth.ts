@@ -11,13 +11,16 @@ export async function signup(_prev: FormState, formData: FormData): Promise<Form
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors, values };
   const { name, email, password } = parsed.data;
 
-  if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) {
+  const sql = db();
+  const [existing] = await sql`select 1 from users where lower(email) = ${email}`;
+  if (existing) {
     return { errors: { email: ["An account with this email already exists"] }, values };
   }
-  const result = db
-    .prepare("INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)")
-    .run(name, email, await hashPassword(password));
-  await createSession(Number(result.lastInsertRowid));
+  const [user] = await sql<{ id: number }[]>`
+    insert into users (name, email, password_hash)
+    values (${name}, ${email}, ${await hashPassword(password)})
+    returning id`;
+  await createSession(user.id);
   redirect("/dashboard");
 }
 
@@ -27,9 +30,8 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors, values };
   const { email, password } = parsed.data;
 
-  const user = db.prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email) as
-    | { id: number; password_hash: string }
-    | undefined;
+  const [user] = await db()<{ id: number; password_hash: string }[]>`
+    select id, password_hash from users where lower(email) = ${email}`;
   if (!user || !(await verifyPassword(password, user.password_hash))) {
     return { message: "Incorrect email or password", values };
   }

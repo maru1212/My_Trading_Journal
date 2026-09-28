@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Trade" };
 
 export default async function TradePage(props: PageProps<"/trades/[id]">) {
   const user = await requireUser();
-  const t = getTrade(user.id, Number((await props.params).id));
+  const t = await getTrade(user.id, Number((await props.params).id));
   if (!t) notFound();
   const c = user.currency;
   const pnl = netPnl(t);

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const rows = template
     ? [["AAPL", "stock", "long", 100, 1, "2026-01-05T09:35", 185.2, "2026-01-05T11:10", 187.9, 184, 190, 2, "Breakout", "A+,morning", "Clean break of premarket high", 4]]
-    : listTrades(user.id, filters)
+    : (await listTrades(user.id, filters))
         .reverse()
         .map((t) => CSV_COLUMNS.map((c) => t[c]));
   const csv = toCsv([[...CSV_COLUMNS], ...rows]);

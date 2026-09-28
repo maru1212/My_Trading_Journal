@@ -27,7 +27,7 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
   const from = `${month}-01`;
   const to = `${month}-${String(daysInMonth).padStart(2, "0")}`;
 
-  const trades = listTrades(user.id, { from, to });
+  const trades = await listTrades(user.id, { from, to });
   const s = summarize(trades);
   const byDay = new Map(dailyPnl(closedTrades(trades)).map((d) => [d.date, d]));
   const maxAbs = Math.max(1, ...[...byDay.values()].map((d) => Math.abs(d.pnl)));
