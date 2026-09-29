@@ -87,10 +87,29 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 | --- | --- |
 | `npm run dev` | Development server |
 | `npm run build` / `npm start` | Production build and server |
-| `npm test` | Unit tests. Database tests run too when `DATABASE_URL_TEST` is set |
+| `npm test` | All tests. Database tests run when `DATABASE_URL_TEST` is set ([Testing](#testing)) |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript |
 | `npm run db:setup` | Create or update the database tables (safe to re-run) |
+
+## Testing
+
+`npm test` runs every test file under `src/`. It includes unit tests for P&L math, stats, validation, redirects and the MT5 mapping. It also includes database tests against real Postgres for trades, sessions/auth and the MT5 sync upsert.
+
+**Database tests** need a disposable Postgres in `DATABASE_URL_TEST`:
+
+```bash
+# e.g. a local Postgres, or: docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
+DATABASE_URL_TEST=postgres://postgres:postgres@localhost:5432/postgres npm test
+```
+
+- Each database suite creates its own schema, `jt_<suite>_<random>`, and loads it from `supabase/schema.sql`. Tables are truncated before every test, and the schema is dropped (by that exact name) when the suite finishes. Nothing outside it is read or written.
+- Tests never use `DATABASE_URL`: it is removed from the test process (`src/test/setup.ts`). A `DATABASE_URL_TEST` equal to `DATABASE_URL`, or on a Supabase host, is refused unless `ALLOW_REMOTE_TEST_DB=1`.
+- Without `DATABASE_URL_TEST`, database suites are **skipped** locally: the summary counts them as skipped, and `--reporter=verbose` labels them `(set DATABASE_URL_TEST to run)`. With `CI=true` or `REQUIRE_DB_TESTS=1` they **fail** instead. If the database is unreachable they fail with "Cannot reach the test database".
+- MetaApi is replaced by the built-in mock bridge, and Next's `cookies()`/`redirect()` by in-memory stand-ins. Everything else runs for real.
+- A crashed run can leave a `jt_…` schema behind. List them with `select nspname from pg_namespace where nspname like 'jt\_%';`.
+
+**CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It uses Node 22, `npm ci` and a throwaway `postgres:16` service. It applies `supabase/schema.sql` twice to prove it is re-runnable, then runs `npm test` with database tests required, lint, typecheck and build. It uses no secrets and doesn't deploy.
 
 ## Environment variables
 
@@ -102,7 +121,8 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 | `ALLOWED_SIGNUP_EMAILS` | to create accounts | Comma-separated emails allowed to register, e.g. `me@example.com`. Matching ignores case and surrounding spaces. Unset or empty: nobody can register |
 | `ALLOW_SIGNUP` | no (default closed) | `true` opens registration to **anyone** and shows sign-up links. Any other value, or unset, keeps it closed |
 | `ALLOW_MT5_MOCK` | no | `true` allows `METAAPI_TOKEN=mock` in production. Default: the mock only runs in development/test |
-| `DATABASE_URL_TEST` | tests only | Postgres URL for the database tests. Each run uses a throwaway schema and drops it. Leave unset to skip those tests |
+| `DATABASE_URL_TEST` | tests only | Disposable Postgres for the database tests (see [Testing](#testing)). Never your production database |
+| `REQUIRE_DB_TESTS` | tests only | `1` makes database tests fail instead of skip when `DATABASE_URL_TEST` is missing. CI sets it; `CI=true` has the same effect |
 
 ## How P&L is calculated
 

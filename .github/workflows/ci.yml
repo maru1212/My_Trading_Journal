@@ -1,0 +1,71 @@
+name: CI
+
+# Runs on every push (the default branch and all development branches) and on pull requests.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test, lint, typecheck, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Disposable database for the test suite. Lives only for this job; no secrets involved.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: journal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d journal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/journal_test
+      # Fail (never skip) database suites if the database is missing.
+      REQUIRE_DB_TESTS: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies (lockfile)
+        run: npm ci
+
+      - name: Initialize test database from supabase/schema.sql (twice, to prove it is re-runnable)
+        run: |
+          DATABASE_URL="$DATABASE_URL_TEST" node scripts/db-setup.mjs
+          DATABASE_URL="$DATABASE_URL_TEST" node scripts/db-setup.mjs
+
+      - name: Unit and database tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
