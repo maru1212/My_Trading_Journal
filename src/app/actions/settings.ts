@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hashPassword, requireUser, verifyPassword } from "@/lib/auth";
+import { currentSessionTokenHash, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { changePasswordAndRevokeOtherSessions } from "@/lib/sessions";
 import { echo, passwordSchema, settingsSchema, type FormState } from "@/lib/validation";
 
 export async function updateSettings(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -27,12 +28,16 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
   const user = await requireUser();
   const parsed = passwordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
-  const sql = db();
-  const [row] = await sql<{ password_hash: string }[]>`select password_hash from users where id = ${user.id}`;
-  if (!(await verifyPassword(parsed.data.current, row.password_hash))) {
-    return { errors: { current: ["Current password is incorrect"] } };
-  }
-  await sql`update users set password_hash = ${await hashPassword(parsed.data.next)} where id = ${user.id}`;
-  return { ok: true, message: "Password updated" };
+  const keepTokenHash = await currentSessionTokenHash();
+  if (!keepTokenHash) return { message: "Your session has expired. Sign in again." };
+  const result = await changePasswordAndRevokeOtherSessions(db(), {
+    userId: user.id,
+    keepTokenHash,
+    currentPassword: parsed.data.current,
+    newPassword: parsed.data.next,
+  });
+  if (result === "wrong-password") return { errors: { current: ["Current password is incorrect"] } };
+  if (result === "not-found") return { message: "Account not found." };
+  return { ok: true, message: "Password updated. Other devices have been signed out." };
 }
 

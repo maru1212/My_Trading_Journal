@@ -1,4 +1,5 @@
 import "server-only";
+import { resolveBridgeMode } from "./bridge-mode";
 
 /**
  * Thin wrapper around the MetaApi cloud SDK (metaapi.cloud). MetaApi runs a MetaTrader
@@ -63,10 +64,10 @@ export function bridgeConfigured() {
 }
 
 export async function getBridge(): Promise<Bridge> {
-  const token = process.env.METAAPI_TOKEN;
-  if (!token) throw new BridgeError("MT5 connection is not set up on the server (METAAPI_TOKEN is missing).");
-  if (token === "mock") return (await import("./metaapi-mock")).mockBridge;
-  return sdkBridge(token);
+  const mode = resolveBridgeMode();
+  if (mode.kind === "error") throw new BridgeError(mode.message);
+  if (mode.kind === "mock") return (await import("./metaapi-mock")).mockBridge;
+  return sdkBridge(mode.token);
 }
 
 function friendly(err: unknown): Error {

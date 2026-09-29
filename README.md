@@ -30,8 +30,10 @@ Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, Po
 ### 2. Deploy (Vercel)
 
 1. Sign in at [vercel.com](https://vercel.com) with GitHub → **Add New… → Project** → import this repository.
-2. Leave the framework preset as **Next.js**. Open **Environment Variables** and add `DATABASE_URL` with the value from step 1.3.
-3. Click **Deploy**. When it finishes, open the URL, create an account and start logging trades.
+2. Leave the framework preset as **Next.js**. Open **Environment Variables** and add `DATABASE_URL` with the value from step 1.3, and `ALLOWED_SIGNUP_EMAILS` with your own email address.
+3. Click **Deploy**. When it finishes, open `/signup` on your deployment, create your account with that email, and start logging trades.
+
+Sign-up is **closed by default**. Only addresses in `ALLOWED_SIGNUP_EMAILS` can register, and the landing page doesn't link to sign-up. See [Access control](#access-control).
 
 Changing `DATABASE_URL` later requires a redeploy (**Deployments → ⋯ → Redeploy**).
 
@@ -68,7 +70,7 @@ MT5 has no web API of its own, so TradeLog uses [MetaApi](https://metaapi.cloud)
 - Syncing is idempotent: positions are matched by account and position ID. Your setup, tags, notes and rating are never overwritten.
 - **Disconnect** removes the cloud terminal from MetaApi (which stops its billing). Trades already synced stay.
 - MetaApi is a paid third-party service; see their pricing. Each connected account uses one MetaApi account.
-- For local development without MetaApi, set `METAAPI_TOKEN=mock` to use a fake account with sample trades.
+- For local development without MetaApi, set `METAAPI_TOKEN=mock` to use a fake account with sample trades. The mock works under `npm run dev` and in tests. In production (`next start`, Vercel) it is refused unless `ALLOW_MT5_MOCK=true`.
 
 ## Sample data
 
@@ -85,7 +87,7 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 | --- | --- |
 | `npm run dev` | Development server |
 | `npm run build` / `npm start` | Production build and server |
-| `npm test` | Unit tests for P&L math, stats, CSV and validation |
+| `npm test` | Unit tests. Database tests run too when `DATABASE_URL_TEST` is set |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript |
 | `npm run db:setup` | Create or update the database tables (safe to re-run) |
@@ -97,6 +99,10 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 | `DATABASE_URL` | yes | Supabase transaction-pooler connection string |
 | `METAAPI_TOKEN` | for MT5 | MetaApi API access token (`mock` for local testing) |
 | `CRON_SECRET` | for daily MT5 sync | Any long random string; Vercel Cron sends it to `/api/cron/mt5-sync` |
+| `ALLOWED_SIGNUP_EMAILS` | to create accounts | Comma-separated emails allowed to register, e.g. `me@example.com`. Matching ignores case and surrounding spaces. Unset or empty: nobody can register |
+| `ALLOW_SIGNUP` | no (default closed) | `true` opens registration to **anyone** and shows sign-up links. Any other value, or unset, keeps it closed |
+| `ALLOW_MT5_MOCK` | no | `true` allows `METAAPI_TOKEN=mock` in production. Default: the mock only runs in development/test |
+| `DATABASE_URL_TEST` | tests only | Postgres URL for the database tests. Each run uses a throwaway schema and drops it. Leave unset to skip those tests |
 
 ## How P&L is calculated
 
@@ -107,9 +113,26 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 - **Max drawdown** is the largest peak-to-trough fall of the equity curve, starting from your starting balance.
 - Dates are stored as entered (your local time). Daily and calendar figures use the day a trade closed.
 
+## Access control
+
+This is a private journal, so registration is **closed unless you open it**:
+
+| Setting | Who can sign up | Sign-up links on landing/login pages | `/signup` page |
+| --- | --- | --- | --- |
+| Neither variable set (default) | Nobody | Hidden | "Sign-ups are closed" |
+| `ALLOWED_SIGNUP_EMAILS=me@example.com` | Only listed addresses | Hidden | Form. Other emails are refused |
+| `ALLOW_SIGNUP=true` | Anyone | Shown | Form |
+
+- The check runs inside the server-side sign-up action, so hiding the page isn't what protects it. Calls made directly to the action are refused too.
+- The allowlist is read only on the server and never sent to the browser.
+- Existing accounts can always sign in, whatever these settings are.
+- **Production:** keep `ALLOW_SIGNUP` unset. Every account shares your MetaApi token (and its bill) and your database, so an open sign-up lets strangers use both. After creating your account you can remove `ALLOWED_SIGNUP_EMAILS` to close registration completely. Changes take effect after a redeploy.
+
 ## Security notes
 
 - Passwords are hashed with scrypt; sessions are random tokens stored hashed, sent as an httpOnly cookie.
+- Changing your password signs out every other session (other browsers and devices). The session you changed it from stays signed in.
+- After sign-in you are only sent back to a path on this site. External, protocol-relative, backslash, encoded and control-character redirects fall back to `/dashboard` (`src/lib/safe-next-path.ts`).
 - The app talks to Postgres directly with `DATABASE_URL` (server-side only). Row-level security is enabled on all tables with no policies, so Supabase's public REST API cannot read them even with the anon key.
 - Keep `DATABASE_URL` secret. Never commit `.env.local`.
 

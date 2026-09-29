@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { getCurrentUser } from "@/lib/auth";
+import { signupMode } from "@/lib/signup-policy";
 
 const FEATURES = [
   { title: "Log every trade", body: "Stocks, options, futures, forex and crypto. Entries, exits, stops, fees, setups, tags and notes in one form." },
@@ -15,6 +16,9 @@ const BARS = [34, -12, 22, 48, -26, 15, 30, -8, 40, 18, -20, 52, 26, -14, 36];
 
 export default async function Home() {
   const user = await getCurrentUser();
+  // Registration links only when anyone may register; allowlisted users go to /signup directly.
+  const canSignUp = signupMode() === "open";
+  const cta = user ? "/dashboard" : canSignUp ? "/signup" : "/login";
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
@@ -24,8 +28,8 @@ export default async function Home() {
             <Link href="/dashboard" className="btn-primary">Open dashboard</Link>
           ) : (
             <>
-              <Link href="/login" className="btn-ghost border-transparent">Sign in</Link>
-              <Link href="/signup" className="btn-primary">Get started</Link>
+              <Link href="/login" className={canSignUp ? "btn-ghost border-transparent" : "btn-primary"}>Sign in</Link>
+              {canSignUp && <Link href="/signup" className="btn-primary">Get started</Link>}
             </>
           )}
         </nav>
@@ -43,10 +47,10 @@ export default async function Home() {
             Log your trades, track your P&amp;L, and turn your history into an edge you can measure.
           </p>
           <div className="mt-8 flex justify-center gap-3">
-            <Link href={user ? "/dashboard" : "/signup"} className="btn-primary px-5 py-2.5 text-base">
-              {user ? "Go to dashboard" : "Start journaling free"}
+            <Link href={cta} className="btn-primary px-5 py-2.5 text-base">
+              {user ? "Go to dashboard" : canSignUp ? "Start journaling free" : "Sign in"}
             </Link>
-            {!user && <Link href="/login" className="btn-ghost px-5 py-2.5 text-base">Sign in</Link>}
+            {!user && canSignUp && <Link href="/login" className="btn-ghost px-5 py-2.5 text-base">Sign in</Link>}
           </div>
 
           <div className="card mx-auto mt-14 max-w-4xl p-4 text-left shadow-2xl shadow-black/10 sm:p-6" aria-hidden="true">
@@ -82,9 +86,9 @@ export default async function Home() {
 
         <section className="mx-auto max-w-6xl px-4 py-20 text-center sm:px-6">
           <h2 className="text-3xl font-semibold tracking-tight">Your next trade deserves a review.</h2>
-          <p className="mt-3 text-ink-2">Set up takes under a minute.</p>
-          <Link href={user ? "/dashboard" : "/signup"} className="btn-primary mt-6 px-5 py-2.5 text-base">
-            {user ? "Open dashboard" : "Create your journal"}
+          <p className="mt-3 text-ink-2">{canSignUp ? "Set up takes under a minute." : "Sign in to open your journal."}</p>
+          <Link href={cta} className="btn-primary mt-6 px-5 py-2.5 text-base">
+            {user ? "Open dashboard" : canSignUp ? "Create your journal" : "Sign in"}
           </Link>
         </section>
       </main>

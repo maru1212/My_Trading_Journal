@@ -16,7 +16,7 @@ function Field({
   );
 }
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, showSignupLink = false }: { next?: string; showSignupLink?: boolean }) {
   const [state, action, pending] = useActionState(login, undefined);
   return (
     <form action={action} className="space-y-4">
@@ -29,9 +29,11 @@ export function LoginForm({ next }: { next?: string }) {
       <Field name="password" label="Password" type="password" autoComplete="current-password" error={state?.errors?.password} />
       {state?.message && <p className="text-sm text-loss">{state.message}</p>}
       <button className="btn-primary w-full" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</button>
-      <p className="text-center text-sm text-ink-2">
-        No account? <Link href="/signup" className="text-accent hover:underline">Create one</Link>
-      </p>
+      {showSignupLink && (
+        <p className="text-center text-sm text-ink-2">
+          No account? <Link href="/signup" className="text-accent hover:underline">Create one</Link>
+        </p>
+      )}
     </form>
   );
 }
