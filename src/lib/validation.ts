@@ -29,7 +29,9 @@ export const tradeSchema = z
     exit_price: optionalNumber,
     stop_loss: optionalNumber,
     take_profit: optionalNumber,
-    fees: z.preprocess((v) => (v === "" || v == null ? 0 : v), z.coerce.number().min(0)),
+    // Signed net costs: positive = paid, negative = net credit (e.g. an MT5 swap credit larger
+    // than the commission). Never clamped; P&L subtracts it as-is.
+    fees: z.preprocess((v) => (v === "" || v == null ? 0 : v), z.coerce.number().finite()),
     setup: optionalText(60),
     tags: optionalText(200),
     notes: optionalText(5000),

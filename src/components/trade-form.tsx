@@ -5,16 +5,10 @@ import { useActionState, useState } from "react";
 import { saveTrade } from "@/app/actions/trades";
 import { formatMoney } from "@/lib/format";
 import { netPnl, rMultiple } from "@/lib/trade-math";
+import { tradeToFormValues, type TradeFormValues } from "@/lib/trade-form-values";
 import { ASSET_CLASSES, type Trade } from "@/lib/types";
 
-type Values = Record<string, string>;
-
-function toValues(t?: Trade | null): Values {
-  const v: Values = {};
-  if (!t) return { side: "long", asset_class: "stock", multiplier: "1", fees: "0" };
-  for (const [k, val] of Object.entries(t)) v[k] = val === null ? "" : String(val);
-  return v;
-}
+type Values = TradeFormValues;
 
 function num(v: string | undefined) {
   return v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
@@ -24,7 +18,7 @@ export function TradeForm({
   trade, currency, setups, now,
 }: { trade?: Trade | null; currency: string; setups: string[]; now: string }) {
   const [state, action, pending] = useActionState(saveTrade, undefined);
-  const [values, setValues] = useState<Values>(() => ({ entry_date: now, ...toValues(trade) }));
+  const [values, setValues] = useState<Values>(() => ({ entry_date: now, ...tradeToFormValues(trade) }));
   const errors = state?.errors ?? {};
 
   const set = (name: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -82,7 +76,7 @@ export function TradeForm({
           </div>
           {field("quantity", "Quantity", { type: "number", step: "any", min: "0", required: true, inputMode: "decimal" })}
           {field("multiplier", "Multiplier", { type: "number", step: "any", min: "0", inputMode: "decimal", title: "Contract size, e.g. 100 for options or 50 for ES futures" })}
-          {field("fees", `Fees & commissions (${currency})`, { type: "number", step: "any", min: "0", inputMode: "decimal" })}
+          {field("fees", `Fees & commissions (${currency})`, { type: "number", step: "any", title: "Net costs. Use a negative number for a net credit, e.g. a swap credit" })}
           {field("stop_loss", "Stop loss", { type: "number", step: "any", inputMode: "decimal" })}
           {field("take_profit", "Take profit", { type: "number", step: "any", inputMode: "decimal" })}
         </div>
