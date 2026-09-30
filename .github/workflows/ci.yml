@@ -53,10 +53,11 @@ jobs:
       - name: Install dependencies (lockfile)
         run: npm ci
 
-      - name: Initialize test database from supabase/schema.sql (twice, to prove it is re-runnable)
+      - name: Initialize test database from migrations (twice, to prove re-runs are no-ops) and check status
         run: |
-          DATABASE_URL="$DATABASE_URL_TEST" node scripts/db-setup.mjs
-          DATABASE_URL="$DATABASE_URL_TEST" node scripts/db-setup.mjs
+          DATABASE_URL="$DATABASE_URL_TEST" node scripts/migrate.mjs migrate
+          DATABASE_URL="$DATABASE_URL_TEST" node scripts/migrate.mjs migrate
+          DATABASE_URL="$DATABASE_URL_TEST" node scripts/migrate.mjs status
 
       - name: Unit and database tests
         run: npm test

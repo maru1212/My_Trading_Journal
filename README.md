@@ -22,8 +22,13 @@ Built with Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS 4, Po
 ### 1. Create the database (Supabase)
 
 1. Sign in at [supabase.com](https://supabase.com) → **New project**. Pick a region near you and **save the database password** you set.
-2. When the project is ready, open **SQL Editor** → **New query**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**. You should see "Success. No rows returned".
-3. Click **Connect** (top of the project page) → **Connection string** tab → choose **Transaction pooler** (port `6543`). Copy the URI and replace `[YOUR-PASSWORD]` with your database password. This is your `DATABASE_URL`.
+2. Click **Connect** (top of the project page) → **Connection string** tab → choose **Transaction pooler** (port `6543`). Copy the URI and replace `[YOUR-PASSWORD]` with your database password. This is your `DATABASE_URL`.
+3. Create the tables from the versioned migrations, from your computer (Node.js 20.9+):
+   ```bash
+   npm install
+   DATABASE_URL="<the URI from step 2>" npm run db:migrate
+   ```
+   It prints `applied 0001_baseline.sql`. Don't paste SQL files into the SQL editor. That bypasses the migration history. See [Database migrations](#database-migrations).
 
 > If your password contains special characters (`@`, `#`, `/`, `%`, …), URL-encode them, or reset the password to letters and numbers under **Project Settings → Database**.
 
@@ -44,7 +49,7 @@ Requires Node.js 20.9+.
 ```bash
 npm install
 cp .env.example .env.local   # then paste your DATABASE_URL into .env.local
-npm run db:setup             # applies supabase/schema.sql (same as step 1.2)
+npm run db:migrate           # creates/updates the tables from supabase/migrations
 npm run dev                  # http://localhost:3000
 ```
 
@@ -58,7 +63,7 @@ MT5 has no web API of its own, so TradeLog uses [MetaApi](https://metaapi.cloud)
 2. In Vercel → **Settings → Environment Variables**, add:
    - `METAAPI_TOKEN`: the MetaApi token.
    - `CRON_SECRET`: any long random string. It lets the daily auto-sync run.
-3. Redeploy. Re-run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL editor if you haven't since the MT5 update.
+3. Redeploy. Make sure the database is up to date: `npm run db:status` (see [Database migrations](#database-migrations)).
 
 **Connecting an account (in the app)**
 
@@ -90,7 +95,50 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 | `npm test` | All tests. Database tests run when `DATABASE_URL_TEST` is set ([Testing](#testing)) |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript |
-| `npm run db:setup` | Create or update the database tables (safe to re-run) |
+| `npm run db:status` | Show migration status. Read-only |
+| `npm run db:migrate` | Apply pending migrations. Also creates a new database. Safe to re-run (`db:setup` is an alias) |
+| `npm run db:adopt` | Bring a database created by the old `schema.sql` under migration management ([details](#adopting-an-existing-database)) |
+
+## Database migrations
+
+The schema is managed by ordered, immutable SQL files in `supabase/migrations/`, named `NNNN_snake_case.sql` (`0001_baseline.sql` is the initial schema). The runner (`scripts/lib/migrator.mjs`, no extra dependencies) records every migration in a `schema_migrations` table: version, name, SHA-256 checksum, `applied` or `adopted`, time and duration.
+
+- Each migration runs in **its own transaction** and is recorded in that same transaction. A failure rolls back the whole migration and records nothing.
+- Runners take a **per-schema advisory lock** (`pg_advisory_xact_lock`), so concurrent runs apply each migration exactly once. The lock is transaction-scoped, so it also works through Supabase's transaction pooler.
+- Before doing anything, the runner checks history against the files. It **stops** if an applied file was edited (checksum), renamed or deleted, or if an unapplied migration is numbered below the latest applied one. It never skips or marks anything silently.
+- Files may not contain `BEGIN`/`COMMIT` or `CONCURRENTLY` (they can't run inside the runner's transaction). Bad names and duplicate versions are errors.
+
+All commands read `DATABASE_URL` (from `.env.local` if present) and print the target host and database, never the password:
+
+| Command | Effect | Exit code |
+| --- | --- | --- |
+| `npm run db:status` | Lists each migration as `applied`, `adopted`, `pending` or a problem. Read-only | 0 up to date · 3 pending · 4 unmanaged (needs adopt) · 1 problem |
+| `npm run db:migrate` | Applies pending migrations in order. On an empty database, creates everything | 0 · 1 on error |
+| `npm run db:adopt -- --check` | Validates a legacy database for adoption. Read-only | 0 adoptable · 1 not |
+| `npm run db:adopt` | Adopts a legacy database (see below) | 0 · 1 |
+
+**Adding a migration:** create the next number, e.g. `supabase/migrations/0002_add_trading_accounts.sql`, containing plain SQL without `BEGIN`/`COMMIT`. Run the tests (they build every test schema from the migrations), then `npm run db:migrate`. Never edit a migration after it has been applied anywhere; add a new one instead.
+
+### Fresh database
+
+`npm run db:migrate` against an empty database creates the tables and records `0001` as `applied`. Running it again prints "Already up to date".
+
+### Adopting an existing database
+
+Databases created before migrations existed (by pasting or re-running the old `supabase/schema.sql`) have tables but no history. `db:migrate` refuses to touch them (`UNMANAGED_SCHEMA`) rather than risk re-running the baseline. Adopt them instead.
+
+Adoption **never changes application tables or data**. It compares the live schema with a fingerprint of `0001_baseline.sql`: every column (type, nullability, default, identity), constraint, index, row-level-security flag, policy and trigger. The fingerprint is built in a temporary schema inside a transaction that is always rolled back. If everything matches, adoption records `0001` as **`adopted`** (not `applied`) without running it. Any difference stops it with a list of what differs, and nothing is written.
+
+1. **Back up** the database (Supabase → Database → Backups, or `pg_dump`).
+2. `DATABASE_URL=… npm run db:status` should say `unmanaged`.
+3. `DATABASE_URL=… npm run db:adopt -- --check`, then act on the result:
+   - **"can be adopted"**: go to step 4.
+   - **`LEGACY_EXTRAS`**: the database also has `users.api_key_hash`, `users.api_key_hint` and index `users_api_key_idx`, left over from the old Expert Advisor version. They're unused and harmless. Adopt with `npm run db:adopt -- --allow-legacy-extras`. They're kept, and the adoption notes list them.
+   - **`INCOMPATIBLE_SCHEMA` with only `missing:` lines for MT5 columns** (`metaapi_account_id`, `mt5_*`, `source`, `external_id`, `broker_pnl`, `trades_external_idx`): the database was created by an older `schema.sql`. Review [`supabase/legacy/schema.sql`](supabase/legacy/schema.sql) (additive, `IF NOT EXISTS`, drops nothing), run it once in the Supabase SQL editor, then repeat step 3.
+   - **Anything else** (`different:`, `unexpected:`, missing tables): stop. The database was changed by hand. Reconcile it manually and don't force adoption.
+4. `DATABASE_URL=… npm run db:adopt`, then `npm run db:status`. It should say `0001 baseline adopted … Up to date`. From then on use only `npm run db:migrate`.
+
+`supabase/legacy/schema.sql` is **frozen**. Its only role is step 3's upgrade of old databases before adoption. Never run it on a managed database, and never change the schema through it. A test checks that it and the migrations produce identical schemas.
 
 ## Testing
 
@@ -103,13 +151,13 @@ For forex, enter lots as quantity and the contract size as multiplier (100000 st
 DATABASE_URL_TEST=postgres://postgres:postgres@localhost:5432/postgres npm test
 ```
 
-- Each database suite creates its own schema, `jt_<suite>_<random>`, and loads it from `supabase/schema.sql`. Tables are truncated before every test, and the schema is dropped (by that exact name) when the suite finishes. Nothing outside it is read or written.
+- Each database suite creates its own schema, `jt_<suite>_<random>`, and builds it by running the migrations in `supabase/migrations`. Tables are truncated before every test, and the schema is dropped (by that exact name) when the suite finishes. Nothing outside it is read or written.
 - Tests never use `DATABASE_URL`: it is removed from the test process (`src/test/setup.ts`). A `DATABASE_URL_TEST` equal to `DATABASE_URL`, or on a Supabase host, is refused unless `ALLOW_REMOTE_TEST_DB=1`.
 - Without `DATABASE_URL_TEST`, database suites are **skipped** locally: the summary counts them as skipped, and `--reporter=verbose` labels them `(set DATABASE_URL_TEST to run)`. With `CI=true` or `REQUIRE_DB_TESTS=1` they **fail** instead. If the database is unreachable they fail with "Cannot reach the test database".
 - MetaApi is replaced by the built-in mock bridge, and Next's `cookies()`/`redirect()` by in-memory stand-ins. Everything else runs for real.
 - A crashed run can leave a `jt_…` schema behind. List them with `select nspname from pg_namespace where nspname like 'jt\_%';`.
 
-**CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It uses Node 22, `npm ci` and a throwaway `postgres:16` service. It applies `supabase/schema.sql` twice to prove it is re-runnable, then runs `npm test` with database tests required, lint, typecheck and build. It uses no secrets and doesn't deploy.
+**CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It uses Node 22, `npm ci` and a throwaway `postgres:16` service. It runs `migrate` twice (the second run must be a no-op) and `status`, then `npm test` with database tests required, lint, typecheck and build. It uses no secrets and doesn't deploy.
 
 ## Environment variables
 
@@ -175,6 +223,8 @@ src/
     stats.ts            summary stats, equity curve, breakdowns
     validation.ts       zod schemas
   proxy.ts              redirects signed-out users away from app pages
-supabase/schema.sql     database tables
-scripts/db-setup.mjs    applies the schema to DATABASE_URL
+supabase/migrations/    versioned SQL migrations (0001_baseline.sql = initial schema)
+supabase/legacy/        frozen pre-migration schema.sql (only for adopting old databases)
+scripts/migrate.mjs     migration CLI (status / migrate / adopt)
+scripts/lib/migrator.mjs  migration runner, history checks, adoption validation
 ```

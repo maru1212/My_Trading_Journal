@@ -9,7 +9,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
-    "db:setup": "node --env-file-if-exists=.env.local scripts/db-setup.mjs"
+    "db:setup": "node --env-file-if-exists=.env.local scripts/migrate.mjs migrate",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs migrate",
+    "db:status": "node --env-file-if-exists=.env.local scripts/migrate.mjs status",
+    "db:adopt": "node --env-file-if-exists=.env.local scripts/migrate.mjs adopt"
   },
   "dependencies": {
     "metaapi.cloud-sdk": "^29.3.3",

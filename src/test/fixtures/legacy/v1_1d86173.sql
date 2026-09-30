@@ -1,3 +1,5 @@
+-- TEST FIXTURE: supabase/schema.sql exactly as committed in 1d86173 (git show 1d86173:supabase/schema.sql).
+-- Used to simulate databases set up with that legacy version. Do not edit.
 -- TradeLog schema. Run once in the Supabase SQL editor (or `npm run db:setup`).
 -- Safe to re-run.
 
@@ -48,17 +50,3 @@ create index if not exists trades_user_date_idx on trades (user_id, entry_date);
 alter table users enable row level security;
 alter table sessions enable row level security;
 alter table trades enable row level security;
-
--- MetaTrader 5 sync via MetaApi (added later; safe to run on an existing database).
-alter table users add column if not exists metaapi_account_id text;
-alter table users add column if not exists mt5_login text;
-alter table users add column if not exists mt5_server text;
-alter table users add column if not exists mt5_account text;
-alter table users add column if not exists mt5_sync_from timestamptz;
-alter table users add column if not exists mt5_last_sync_at timestamptz;
-alter table users add column if not exists mt5_last_error text;
-
-alter table trades add column if not exists source text not null default 'manual';
-alter table trades add column if not exists external_id text; -- 'mt5:<login>:<position id>'
-alter table trades add column if not exists broker_pnl double precision; -- net profit reported by the broker
-create unique index if not exists trades_external_idx on trades (user_id, external_id);
